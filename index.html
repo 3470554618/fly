@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>霓虹飞行棋 · Neon Aeroplane Chess</title>
+<style>
+  :root {
+    --board-size: min(94vw, 520px, max(230px, calc(100vh - 310px)));
+    --label-size: clamp(5px, calc(var(--board-size) * 0.0175), 10px);
+  }
+  @supports (height: 100dvh) {
+    :root { --board-size: min(94vw, 520px, max(230px, calc(100dvh - 310px))); }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at 50% 20%, #16203a 0%, #080c16 55%, #04060c 100%);
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    color: #dfe8ff;
+    padding: 12px;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app {
+    width: var(--board-size);
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* 顶栏 */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 34px;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff3b5c, #ffc93c);
+    box-shadow: 0 0 12px rgba(255,120,80,.9);
+  }
+  .brand h1 {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    background: linear-gradient(90deg, #ff3b5c, #ffc93c, #35e08a, #35b6ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .icon-btn {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(120,170,255,.28);
+    background: rgba(255,255,255,.03);
+    color: rgba(170,200,255,.85);
+    font-size: 17px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .2s;
+  }
+  .icon-btn:hover {
+    background: rgba(90,150,255,.14);
+    color: #dfeaff;
+    border-color: rgba(120,170,255,.55);
+  }
+
+  /* 回合卡 */
+  .turn-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    border-radius: 13px;
+    background: rgba(var(--crgb), .1);
+    border: 1px solid rgba(var(--crgb), .4);
+    box-shadow: 0 0 20px rgba(var(--crgb), .16);
+    transition: all .3s;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+  }
+  .turn-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgb(var(--crgb));
+    box-shadow: 0 0 12px rgb(var(--crgb));
+    animation: dotBlink 1.3s ease-in-out infinite;
+    flex: 0 0 auto;
+  }
+  @keyframes dotBlink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .35; }
+  }
+
+  /* 棋盘 */
+  .board-wrap { position: relative; width: 100%; aspect-ratio: 1; }
+
+  .board {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 22px;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(50,90,180,.16), transparent 62%),
+      #0a1020;
+    border: 1px solid rgba(110,160,255,.16);
+    box-shadow: 0 0 60px rgba(50,110,255,.14), inset 0 0 80px rgba(30,60,150,.22);
+    overflow: hidden;
+  }
+  .board::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(90,150,255,.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(90,150,255,.055) 1px, transparent 1px);
+    background-size: calc(100% / 15) calc(100% / 15);
+    pointer-events: none;
+  }
+
+  .path-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .flow-line {
+    stroke-dasharray: 0.3 1.7;
+    animation: dashFlow 1.5s linear infinite;
+  }
+  @keyframes dashFlow {
+    from { stroke-dashoffset: 0; }
+    to   { stroke-dashoffset: -2; }
+  }
+
+  .hangar {
+    position: absolute;
+    width: 40%;
+    height: 40%;
+    border-radius: 20px;
+    background: rgba(var(--crgb), .07);
+    border: 1px solid rgba(var(--crgb), .3);
+    box-shadow: inset 0 0 34px rgba(var(--crgb), .12);
+  }
+
+  .hub {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 13.4%; height: 13.4%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(150,200,255,.3), rgba(60,100,200,.05) 72%);
+    border: 1px solid rgba(150,200,255,.4);
+    box-shadow: 0 0 40px rgba(90,150,255,.35), inset 0 0 24px rgba(120,180,255,.25);
+    animation: hubPulse 2.6s ease-in-out infinite;
+  }
+  @keyframes hubPulse {
+    0%, 100% { box-shadow: 0 0 32px rgba(90,150,255,.28), inset 0 0 20px rgba(120,180,255,.2); }
+    50%      { box-shadow: 0 0 56px rgba(120,180,255,.5), inset 0 0 30px rgba(150,200,255,.4); }
+  }
+
+  .cell {
+    position: absolute;
+    width: 5.4%; height: 5.4%;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(var(--crgb), .16);
+    border: 1px solid rgba(var(--crgb), .5);
+    box-shadow: 0 0 8px rgba(var(--crgb), .28);
+    transition: box-shadow .3s;
+  }
+  .lane-cell {
+    background: rgba(var(--crgb), .26);
+    border-color: rgba(var(--crgb), .75);
+    box-shadow: 0 0 12px rgba(var(--crgb), .45);
+  }
+  .goal-cell {
+    background: rgba(var(--crgb), .55);
+    box-shadow: 0 0 20px rgba(var(--crgb), .9);
+  }
+  .start-cell {
+    box-shadow: 0 0 0 2px rgba(255,255,255,.42), 0 0 15px rgba(var(--crgb), .85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 6;
+  }
+  .start-label {
+    font-size: var(--label-size);
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+    color: #ffffff;
+    letter-spacing: -1px;
+    text-shadow: 0 0 2px #000, 0 0 4px #000, 0 0 7px rgba(var(--crgb), 1);
+    pointer-events: none;
+  }
+
+  .fly-cell {
+    --crgb: 255, 205, 70;
+    width: 5.4%; height: 5.4%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,214,90,.42), rgba(255,190,50,.08) 72%);
+    border: 1px solid rgba(255,214,90,.95);
+    box-shadow:
+      0 0 10px rgba(255,214,90,.9),
+      0 0 24px rgba(255,196,60,.55),
+      0 0 42px rgba(255,180,40,.28);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 5;
+    animation: starPulse 1.7s ease-in-out infinite;
+  }
+  @keyframes starPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1);    filter: brightness(1); }
+    50%      { transform: translate(-50%, -50%) scale(1.12); filter: brightness(1.3); }
+  }
+  .star-svg {
+    width: 100%; height: 100%;
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 0 2px #fff3b0) drop-shadow(0 0 6px #ffc93c) drop-shadow(0 0 11px #ffae00);
+  }
+  .star-svg path { fill: #ffe27a; stroke: #fffdf0; stroke-width: .07; stroke-linejoin: round; }
+
+  .plane {
+    position: absolute;
+    width: 5.4%; height: 5.4%;
+    transform: translate(-50%, -50%);
+    transition: left .26s cubic-bezier(.34,1.3,.64,1), top .26s cubic-bezier(.34,1.3,.64,1);
+    z-index: 20;
+    pointer-events: none;
+    filter: drop-shadow(0 0 5px rgba(var(--crgb), .85));
+  }
+  .plane svg {
+    width: 100%; height: 100%;
+    display: block;
+    fill: var(--c);
+    stroke: rgba(255,255,255,.7);
+    stroke-width: .9;
+    stroke-linejoin: round;
+  }
+  .plane.movable {
+    pointer-events: auto;
+    cursor: pointer;
+    animation: planeGlow .85s ease-in-out infinite alternate;
+  }
+  @keyframes planeGlow {
+    from { filter: drop-shadow(0 0 5px rgba(var(--crgb), .85)); }
+    to   { filter: drop-shadow(0 0 15px rgba(var(--crgb), 1)) drop-shadow(0 0 5px #fff); }
+  }
+  .plane.movable::after {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.9);
+    animation: ringOut 1s ease-out infinite;
+  }
+  @keyframes ringOut {
+    0%   { transform: scale(.65); opacity: 1; }
+    100% { transform: scale(1.3); opacity: 0; }
+  }
+
+  .toast {
+    position: absolute;
+    left: 50%; bottom: 5%;
+    transform: translateX(-50%) translateY(12px);
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(14,22,44,.95);
+    border: 1px solid rgba(120,180,255,.45);
+    box-shadow: 0 0 22px rgba(80,140,255,.35);
+    color: #cfe4ff;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s, transform .25s;
+    white-space: nowrap;
+    z-index: 120;
+    max-width: 92%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* 遮罩层 */
+  .start-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    background: rgba(6,10,20,.94);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    transition: opacity .3s ease, visibility .3s ease;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .start-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+  .so-inner {
+    width: 100%;
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+  .so-inner.hidden { display: none; }
+
+  .so-inner h2 {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg, #ff3b5c, #ffc93c, #35e08a, #35b6ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 1px;
+  }
+  .so-sub {
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    color: rgba(150,180,230,.6);
+    margin-bottom: 6px;
+    line-height: 1.6;
+  }
+
+  .mode-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 15px;
+    border-radius: 13px;
+    border: 1px solid rgba(120,170,255,.3);
+    background: linear-gradient(150deg, rgba(40,70,150,.35), rgba(20,35,80,.35));
+    color: #dfeaff;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: inherit;
+    text-align: left;
+  }
+  .mode-btn:hover {
+    border-color: rgba(120,170,255,.75);
+    background: linear-gradient(150deg, rgba(55,100,200,.5), rgba(30,55,120,.5));
+    box-shadow: 0 0 24px rgba(70,130,255,.35);
+    transform: translateY(-1px);
+  }
+  .mode-btn:active { transform: scale(.98); }
+  .mb-title { font-size: 14.5px; font-weight: 800; letter-spacing: 2px; }
+  .mb-desc { font-size: 10.5px; color: rgba(150,180,230,.65); }
+
+  /* 大厅颜色格 */
+  .color-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-top: 2px;
+  }
+  .color-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 6px;
+    border-radius: 13px;
+    border: 1.5px solid rgba(var(--crgb), .55);
+    background: rgba(var(--crgb), .1);
+    cursor: pointer;
+    transition: all .2s;
+    font-family: inherit;
+    position: relative;
+    min-height: 74px;
+  }
+  .color-btn:hover:not(.taken) {
+    background: rgba(var(--crgb), .22);
+    box-shadow: 0 0 26px rgba(var(--crgb), .55);
+    transform: translateY(-2px);
+    border-color: rgba(var(--crgb), .95);
+  }
+  .color-btn:active:not(.taken) { transform: scale(.97); }
+  .color-btn.taken {
+    cursor: default;
+    background: rgba(var(--crgb), .18);
+    border-color: rgba(var(--crgb), .8);
+  }
+  .color-btn.mine {
+    box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 26px rgba(var(--crgb), .7);
+  }
+  .cb-dot {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgb(var(--crgb));
+    box-shadow: 0 0 16px rgb(var(--crgb)), inset 0 -3px 6px rgba(0,0,0,.35);
+    flex: 0 0 auto;
+  }
+  .cb-name {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: rgb(var(--crgb));
+    text-shadow: 0 0 10px rgba(var(--crgb), .6);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 4px;
+  }
+  .cb-hint {
+    font-size: 9.5px;
+    color: rgba(180,205,245,.5);
+    letter-spacing: 1px;
+  }
+  .cb-badge {
+    position: absolute;
+    top: 4px; right: 5px;
+    font-size: 8.5px;
+    font-weight: 800;
+    color: #fff;
+    background: rgb(var(--crgb));
+    padding: 1px 5px;
+    border-radius: 6px;
+    box-shadow: 0 0 8px rgb(var(--crgb));
+    line-height: 1.4;
+  }
+
+  .text-input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(120,170,255,.3);
+    background: rgba(10,18,36,.9);
+    color: #dfeaff;
+    font-size: 16px;
+    font-family: inherit;
+    letter-spacing: 3px;
+    text-align: center;
+    text-transform: uppercase;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .text-input::placeholder { color: rgba(130,160,210,.4); letter-spacing: 2px; text-transform: none; }
+  .text-input:focus {
+    border-color: rgba(120,170,255,.85);
+    box-shadow: 0 0 20px rgba(70,130,255,.35);
+  }
+
+  .code-display {
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: 9px;
+    color: #9fd4ff;
+    text-shadow: 0 0 20px rgba(90,170,255,.85), 0 0 40px rgba(70,130,255,.5);
+    padding: 10px 0 6px;
+    user-select: all;
+    -webkit-user-select: all;
+    cursor: pointer;
+  }
+
+  .primary-btn {
+    padding: 13px;
+    border-radius: 13px;
+    border: none;
+    background: linear-gradient(150deg, #2a63ff, #1b3fd0);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 0 24px rgba(45,100,255,.5), inset 0 1px 0 rgba(255,255,255,.28);
+    transition: filter .2s, transform .12s;
+  }
+  .primary-btn:hover:not(:disabled) { filter: brightness(1.14); }
+  .primary-btn:active:not(:disabled) { transform: scale(.97); }
+  .primary-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .back-btn {
+    padding: 9px;
+    border-radius: 11px;
+    border: 1px solid rgba(120,170,255,.25);
+    background: transparent;
+    color: rgba(160,195,255,.75);
+    font-size: 12.5px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .2s;
+  }
+  .back-btn:hover {
+    background: rgba(90,150,255,.12);
+    color: #dfeaff;
+    border-color: rgba(120,170,255,.55);
+  }
+
+  /* 底部 */
+  .players {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 7px;
+  }
+  .pcard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 7px 3px;
+    border-radius: 11px;
+    background: rgba(255,255,255,.035);
+    border: 1px solid rgba(255,255,255,.07);
+    transition: all .25s;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .pcard.active {
+    background: rgba(var(--crgb), .15);
+    border-color: rgba(var(--crgb), .55);
+    box-shadow: 0 0 15px rgba(var(--crgb), .25);
+  }
+  .pcard.you::before {
+    content: '你';
+    position: absolute;
+    top: 2px; right: 3px;
+    font-size: 8px;
+    font-weight: 800;
+    color: #fff;
+    background: rgb(var(--crgb));
+    padding: 1px 4px;
+    border-radius: 6px;
+    box-shadow: 0 0 8px rgb(var(--crgb));
+    line-height: 1.35;
+  }
+  .pc-top {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .pdot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgb(var(--crgb));
+    box-shadow: 0 0 8px rgb(var(--crgb));
+    flex: 0 0 auto;
+  }
+  .pname {
+    font-size: 11px;
+    color: rgba(215,230,255,.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .pcount {
+    font-size: 11px;
+    font-weight: 800;
+    color: rgb(var(--crgb));
+  }
+
+  .dice-row { display: flex; align-items: center; gap: 10px; }
+  .dice {
+    width: 60px; height: 60px;
+    flex: 0 0 60px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 4px;
+    padding: 8px;
+    border-radius: 15px;
+    background: linear-gradient(150deg, #1b2644, #0c1322);
+    border: 1px solid rgba(120,170,255,.3);
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.65), 0 0 20px rgba(70,130,255,.2);
+  }
+  .pip { border-radius: 50%; background: transparent; transition: all .1s; }
+  .pip.on { background: #7fd0ff; box-shadow: 0 0 9px #7fd0ff, 0 0 3px #fff; }
+
+  .roll-btn {
+    flex: 1;
+    min-width: 0;
+    height: 60px;
+    border: none;
+    border-radius: 15px;
+    background: linear-gradient(150deg, #2a63ff, #1b3fd0);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    cursor: pointer;
+    box-shadow: 0 0 24px rgba(45,100,255,.5), inset 0 1px 0 rgba(255,255,255,.28);
+    transition: transform .12s, box-shadow .2s, filter .2s;
+    font-family: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .roll-btn:hover:not(:disabled) {
+    filter: brightness(1.14);
+    box-shadow: 0 0 36px rgba(70,130,255,.75), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .roll-btn:active:not(:disabled) { transform: scale(.97); }
+  .roll-btn:disabled {
+    background: linear-gradient(150deg, #232c44, #161c2c);
+    color: rgba(160,185,230,.35);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .net-status {
+    font-size: 10.5px;
+    letter-spacing: 1.5px;
+    color: rgba(150,180,230,.6);
+    text-align: center;
+    height: 14px;
+    line-height: 14px;
+    transition: color .3s;
+  }
+  .net-status.ok { color: #5fe0a0; }
+  .net-status.err { color: #ff6b7f; }
+
+  @media (max-width: 360px) {
+    .pname { font-size: 10px; }
+    .pcount { font-size: 10px; }
+    .roll-btn { letter-spacing: 1px; font-size: 14px; }
+    .brand h1 { font-size: 15px; letter-spacing: 2px; }
+    .code-display { font-size: 26px; letter-spacing: 7px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>霓虹飞行棋</h1>
+    </div>
+    <button class="icon-btn" id="menuBtn" title="主菜单">↺</button>
+  </header>
+
+  <div class="turn-card" id="turnCard">
+    <span class="turn-dot"></span>
+    <span id="turnText">红队回合</span>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="toast" id="toast"></div>
+
+    <div class="start-overlay" id="startOverlay">
+
+      <!-- 主菜单 -->
+      <div class="so-inner" id="menuView">
+        <h2>霓虹飞行棋</h2>
+        <p class="so-sub">选择对局方式</p>
+        <button class="mode-btn" data-act="pvp">
+          <span class="mb-title">本地同屏</span>
+          <span class="mb-desc">4 人共用一台设备</span>
+        </button>
+        <button class="mode-btn" data-act="ai">
+          <span class="mb-title">人机对战</span>
+          <span class="mb-desc">你选颜色 · 1 人 + 3 电脑</span>
+        </button>
+        <button class="mode-btn" data-act="host">
+          <span class="mb-title">创建联机房间</span>
+          <span class="mb-desc">生成房间码，邀请好友加入</span>
+        </button>
+        <button class="mode-btn" data-act="join">
+          <span class="mb-title">加入联机房间</span>
+          <span class="mb-desc">输入房间码进入</span>
+        </button>
+      </div>
+
+      <!-- 人机：选颜色 -->
+      <div class="so-inner hidden" id="aiColorView">
+        <h2>选择你的队伍</h2>
+        <p class="so-sub">其余三队由电脑操控</p>
+        <div class="color-grid" id="aiColorGrid"></div>
+        <button class="back-btn" data-back="menu">← 返回</button>
+      </div>
+
+      <!-- 加入房间 -->
+      <div class="so-inner hidden" id="joinView">
+        <h2>加入房间</h2>
+        <p class="so-sub">输入 4 位房间码</p>
+        <input class="text-input" id="codeInput" maxlength="4" placeholder="房间码" autocomplete="off" spellcheck="false">
+        <input class="text-input" id="nameInput" maxlength="6" placeholder="你的昵称" autocomplete="off" spellcheck="false" style="letter-spacing:1px;text-transform:none;">
+        <button class="primary-btn" id="joinBtn">加 入</button>
+        <div class="net-status" id="joinStatus"></div>
+        <button class="back-btn" data-back="menu">← 返回</button>
+      </div>
+
+      <!-- 联机大厅 -->
+      <div class="so-inner hidden" id="lobbyView">
+        <h2>房间</h2>
+        <div class="code-display" id="roomCode">----</div>
+        <p class="so-sub" id="lobbyHint">等待玩家加入…</p>
+        <div class="color-grid" id="lobbyGrid"></div>
+        <div class="net-status" id="lobbyStatus"></div>
+        <button class="back-btn" id="leaveBtn">离 开 房 间</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="net-status" id="netStatus"></div>
+
+  <div class="players" id="players"></div>
+
+  <div class="dice-row">
+    <div class="dice" id="dice"></div>
+    <button class="roll-btn" id="rollBtn">掷 骰 子</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+/* =========================================================
+   常量
+   ========================================================= */
+const PATH = [];
+(function buildPath() {
+  for (let c = 0;  c <= 5;  c++) PATH.push([6, c]);
+  for (let r = 5;  r >= 0;  r--) PATH.push([r, 6]);
+  PATH.push([0, 7]);
+  for (let r = 0;  r <= 5;  r++) PATH.push([r, 8]);
+  for (let c = 9;  c <= 14; c++) PATH.push([6, c]);
+  PATH.push([7, 14]);
+  for (let c = 14; c >= 9;  c--) PATH.push([8, c]);
+  for (let r = 9;  r <= 14; r++) PATH.push([r, 8]);
+  PATH.push([14, 7]);
+  for (let r = 14; r >= 9;  r--) PATH.push([r, 6]);
+  for (let c = 5;  c >= 0;  c--) PATH.push([8, c]);
+  PATH.push([7, 0]);
+})();
+
+const COLORS = [
+  { name:'红队', hex:'#ff3b5c', rgb:'255,59,92',  start:1,
+    hangar:[[1.2,1.2],[1.2,3.8],[3.8,1.2],[3.8,3.8]],
+    lane:[[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+    corner:[0,0], padCenter:[3,3] },
+  { name:'黄队', hex:'#ffc93c', rgb:'255,201,60', start:14,
+    hangar:[[1.2,10.2],[1.2,12.8],[3.8,10.2],[3.8,12.8]],
+    lane:[[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]],
+    corner:[0,60], padCenter:[3,12] },
+  { name:'蓝队', hex:'#35b6ff', rgb:'53,182,255', start:27,
+    hangar:[[10.2,10.2],[10.2,12.8],[12.8,10.2],[12.8,12.8]],
+    lane:[[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+    corner:[60,60], padCenter:[12,12] },
+  { name:'绿队', hex:'#35e08a', rgb:'53,224,138', start:40,
+    hangar:[[10.2,1.2],[10.2,3.8],[12.8,1.2],[12.8,3.8]],
+    lane:[[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]],
+    corner:[60,0], padCenter:[12,3] }
+];
+
+const FLY_CELLS = [4, 17, 30, 43];
+const GOAL = 56;
+const trackColor = i => ((i - 1) % 4 + 4) % 4;
+const trackIndex = (pi, prog) => (COLORS[pi].start + prog) % 52;
+
+/* =========================================================
+   全局状态
+   ========================================================= */
+const state = {
+  players: [],
+  turn: 0,
+  dice: 0,
+  phase: 'idle',       // idle | rolling | choose | moving | over
+  busy: false,
+  aiFlags: [false, false, false, false],
+  mode: 'pvp',         // pvp | ai | online
+  humanIndex: 0
+};
+
+const NET = {
+  isHost: false,
+  peer: null,
+  roomCode: '',
+  mySeat: -1,
+  myName: '',
+  conns: {},           // host: peerId -> conn
+  peerNames: {},       // host: peerId -> name
+  hostConn: null,      // client
+  lobby: [null, null, null, null]   // [{peerId, name}]
+};
+
+let planeEls = [];
+let aiTimer = null;
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isAITurn = () => !!state.aiFlags[state.turn];
+
+/* =========================================================
+   工具
+   ========================================================= */
+function starPath(cx, cy, R, r, points = 5) {
+  let d = '';
+  for (let i = 0; i < points * 2; i++) {
+    const ang = -Math.PI / 2 + i * Math.PI / points;
+    const rad = (i % 2 === 0) ? R : r;
+    d += (i === 0 ? 'M' : 'L') +
+         (cx + Math.cos(ang) * rad).toFixed(3) + ' ' +
+         (cy + Math.sin(ang) * rad).toFixed(3);
+  }
+  return d + 'Z';
+}
+const STAR_SVG =
+  '<svg class="star-svg" viewBox="-1.12 -1.12 2.24 2.24">' +
+  '<path d="' + starPath(0, 0, 1, 0.44) + '"/></svg>';
+
+/* =========================================================
+   棋盘构建
+   ========================================================= */
+const boardEl = $('board');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function buildPathLayer() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'path-layer');
+  svg.setAttribute('viewBox', '0 0 15 15');
+
+  const defs = document.createElementNS(SVG_NS, 'defs');
+  const filter = document.createElementNS(SVG_NS, 'filter');
+  filter.setAttribute('id', 'lineGlow');
+  filter.setAttribute('x', '-60%'); filter.setAttribute('y', '-60%');
+  filter.setAttribute('width', '220%'); filter.setAttribute('height', '220%');
+  const blur = document.createElementNS(SVG_NS, 'feGaussianBlur');
+  blur.setAttribute('stdDeviation', '0.22');
+  filter.appendChild(blur);
+  defs.appendChild(filter);
+  svg.appendChild(defs);
+
+  const mkPath = (d, stroke, width, opacity, extra) => {
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', stroke);
+    p.setAttribute('stroke-width', width);
+    p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-linejoin', 'round');
+    p.setAttribute('opacity', opacity);
+    if (extra) for (const k in extra) p.setAttribute(k, extra[k]);
+    return p;
+  };
+  const toXY = ([r, c]) => (c + 0.5).toFixed(3) + ' ' + (r + 0.5).toFixed(3);
+
+  const outerD = 'M' + PATH.map(toXY).join(' L ') + ' Z';
+  svg.appendChild(mkPath(outerD, '#6fa8ff', 0.42, 0.5, { filter: 'url(#lineGlow)' }));
+  svg.appendChild(mkPath(outerD, '#7fb3ff', 0.085, 0.75));
+  svg.appendChild(mkPath(outerD, '#cfe8ff', 0.11, 0.95, { class: 'flow-line' }));
+
+  COLORS.forEach((col, pi) => {
+    const entry = PATH[trackIndex(pi, 50)];
+    const pts = [entry, ...col.lane, [7, 7]];
+    const d = 'M' + pts.map(toXY).join(' L ');
+    svg.appendChild(mkPath(d, col.hex, 0.36, 0.45, { filter: 'url(#lineGlow)' }));
+    svg.appendChild(mkPath(d, col.hex, 0.085, 0.8));
+    svg.appendChild(mkPath(d, '#ffffff', 0.1, 0.7, { class: 'flow-line' }));
+  });
+
+  COLORS.forEach(col => {
+    const pad = col.padCenter, st = PATH[col.start];
+    const d = 'M' + pad[1].toFixed(2) + ' ' + pad[0].toFixed(2) +
+              ' L' + (st[1] + 0.5).toFixed(2) + ' ' + (st[0] + 0.5).toFixed(2);
+    svg.appendChild(mkPath(d, col.hex, 0.055, 0.35, {
+      'stroke-dasharray': '0.16 0.3'
+    }));
+  });
+
+  return svg;
+}
+
+function initBoard() {
+  boardEl.appendChild(buildPathLayer());
+
+  COLORS.forEach(col => {
+    const el = document.createElement('div');
+    el.className = 'hangar';
+    el.style.top  = col.corner[0] + '%';
+    el.style.left = col.corner[1] + '%';
+    el.style.setProperty('--crgb', col.rgb);
+    boardEl.appendChild(el);
+  });
+
+  const hub = document.createElement('div');
+  hub.className = 'hub';
+  boardEl.appendChild(hub);
+
+  PATH.forEach(([r, c], idx) => {
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.style.left = ((c + 0.5) / 15 * 100) + '%';
+    el.style.top  = ((r + 0.5) / 15 * 100) + '%';
+
+    const owner = COLORS.findIndex(cc => cc.start === idx);
+
+    if (FLY_CELLS.includes(idx)) {
+      el.classList.add('fly-cell');
+      el.innerHTML = STAR_SVG;
+    } else if (owner >= 0) {
+      el.style.setProperty('--crgb', COLORS[owner].rgb);
+      el.classList.add('start-cell');
+      el.innerHTML = '<span class="start-label">起点</span>';
+    } else {
+      el.style.setProperty('--crgb', COLORS[trackColor(idx)].rgb);
+    }
+    boardEl.appendChild(el);
+  });
+
+  COLORS.forEach(col => {
+    col.lane.forEach(([r, c], k) => {
+      const el = document.createElement('div');
+      el.className = 'cell lane-cell';
+      el.style.setProperty('--crgb', col.rgb);
+      el.style.left = ((c + 0.5) / 15 * 100) + '%';
+      el.style.top  = ((r + 0.5) / 15 * 100) + '%';
+      if (k === col.lane.length - 1) el.classList.add('goal-cell');
+      boardEl.appendChild(el);
+    });
+  });
+
+  COLORS.forEach((col, pi) => {
+    planeEls[pi] = [];
+    for (let i = 0; i < 4; i++) {
+      const el = document.createElement('div');
+      el.className = 'plane';
+      el.style.setProperty('--c', col.hex);
+      el.style.setProperty('--crgb', col.rgb);
+      el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2 L13.5 8.5 L21 12 L21 14 L13.5 12 L13.5 17.5 L16 19.5 L16 21 L12 19.5 L8 21 L8 19.5 L10.5 17.5 L10.5 12 L3 14 L3 12 L10.5 8.5 Z"/></svg>';
+      el.addEventListener('click', () => handlePlaneClick(pi, i));
+      boardEl.appendChild(el);
+      planeEls[pi].push(el);
+    }
+  });
+}
+
+/* =========================================================
+   渲染
+   ========================================================= */
+function updatePlanes() {
+  const groups = {};
+  const items = [];
+
+  state.players.forEach((pl, pi) => {
+    if (!pl) return;
+    pl.planes.forEach((p, i) => {
+      let base, key;
+      if (p.progress < 0) {
+        base = COLORS[pi].hangar[i]; key = 'H' + pi + '_' + i;
+      } else if (p.progress <= 50) {
+        const idx = trackIndex(pi, p.progress);
+        base = PATH[idx]; key = 'T' + idx;
+      } else {
+        base = COLORS[pi].lane[p.progress - 51];
+        key = 'L' + pi + '_' + p.progress;
+      }
+      items.push({ pi, i, base });
+      (groups[key] = groups[key] || []).push(items.length - 1);
+    });
+  });
+
+  Object.values(groups).forEach(list => {
+    const n = list.length;
+    const step = n <= 2 ? 0.42 : 0.33;
+    list.forEach((itemIdx, k) => {
+      const it = items[itemIdx];
+      const off = n > 1 ? (k - (n - 1) / 2) * step : 0;
+      const el = planeEls[it.pi][it.i];
+      el.style.left = ((it.base[1] + 0.5 + off) / 15 * 100) + '%';
+      el.style.top  = ((it.base[0] + 0.5) / 15 * 100) + '%';
+      el.style.zIndex = 20 + k;
+    });
+  });
+}
+
+const PIP_MAP = {
+  1: [4], 2: [0, 8], 3: [0, 4, 8],
+  4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8]
+};
+function renderDice(v) {
+  const el = $('dice');
+  el.innerHTML = '';
+  const pips = PIP_MAP[v] || [];
+  for (let i = 0; i < 9; i++) {
+    const d = document.createElement('div');
+    d.className = 'pip' + (pips.includes(i) ? ' on' : '');
+    el.appendChild(d);
+  }
+}
+
+let toastTimer = null;
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+function setNetStatus(id, msg, cls) {
+  const el = $(id);
+  el.textContent = msg || '';
+  el.className = 'net-status' + (cls ? ' ' + cls : '');
+}
+
+/* 玩家显示名 */
+function playerNameAt(pi) {
+  if (state.mode === 'online') {
+    return (NET.lobby[pi] && NET.lobby[pi].name) || COLORS[pi].name;
+  }
+  if (state.mode === 'ai') {
+    return (pi === state.humanIndex) ? COLORS[pi].name : '电脑';
+  }
+  return COLORS[pi].name;
+}
+
+function buildPlayerCards() {
+  const wrap = $('players');
+  wrap.innerHTML = '';
+  COLORS.forEach((col, pi) => {
+    const el = document.createElement('div');
+    el.className = 'pcard';
+    el.dataset.pi = pi;
+    el.style.setProperty('--crgb', col.rgb);
+    el.innerHTML =
+      '<div class="pc-top"><span class="pdot"></span><span class="pname"></span></div>' +
+      '<span class="pcount">0/4</span>';
+    wrap.appendChild(el);
+  });
+}
+
+function updateHUD() {
+  const cur = COLORS[state.turn];
+  $('turnCard').style.setProperty('--crgb', cur.rgb);
+
+  let label;
+  if (state.phase === 'over') {
+    label = '对局结束';
+  } else if (state.mode === 'online') {
+    label = (state.turn === NET.mySeat) ? '你的回合' : (playerNameAt(state.turn) + ' 回合');
+  } else if (state.mode === 'ai') {
+    label = (state.turn === state.humanIndex) ? '你的回合' : '电脑回合';
+  } else {
+    label = cur.name + '回合';
+  }
+  $('turnText').textContent = label;
+
+  document.querySelectorAll('.pcard').forEach(el => {
+    const pi = +el.dataset.pi;
+    const planes = state.players[pi] ? state.players[pi].planes : [];
+    const done = planes.filter(p => p.progress === GOAL).length;
+    el.querySelector('.pcount').textContent = done + '/4';
+    el.querySelector('.pname').textContent = playerNameAt(pi);
+    el.classList.toggle('you',
+      (state.mode === 'online' && pi === NET.mySeat) ||
+      (state.mode === 'ai' && pi === state.humanIndex));
+    el.classList.toggle('active', pi === state.turn && state.phase !== 'over');
+  });
+
+  updateControls();
+}
+
+function updateControls() {
+  clearHighlight();
+  const btn = $('rollBtn');
+
+  if (state.phase === 'over') {
+    btn.textContent = '再 来 一 局';
+    btn.disabled = false;
+    return;
+  }
+
+  const myTurn = (state.mode === 'online')
+    ? (state.turn === NET.mySeat)
+    : !isAITurn();
+
+  if (!myTurn) {
+    if (state.mode === 'online') btn.textContent = '等 待 对 手';
+    else if (state.mode === 'ai') btn.textContent = '电 脑 思 考';
+    else btn.textContent = '等 待 中';
+    btn.disabled = true;
+  } else {
+    btn.textContent = '掷 骰 子';
+    btn.disabled = !(state.phase === 'idle');
+  }
+
+  /* 高亮自己的可移动飞机 */
+  if (state.phase === 'choose') {
+    let pi = null;
+    if (state.mode === 'online' && state.turn === NET.mySeat) pi = NET.mySeat;
+    else if (state.mode !== 'online' && !isAITurn()) pi = state.turn;
+
+    if (pi !== null) {
+      legalMoves(pi, state.dice).forEach(m => {
+        const el = planeEls[pi][m.plane];
+        el.classList.add('movable');
+        el.style.zIndex = 60;
+      });
+    }
+  }
+}
+
+function clearHighlight() {
+  document.querySelectorAll('.plane.movable').forEach(el => {
+    el.classList.remove('movable');
+  });
+}
+
+/* =========================================================
+   游戏逻辑
+   ========================================================= */
+const canTakeOff = d => (d === 1 || d === 6);
+
+function legalMoves(pi, dice) {
+  const res = [];
+  if (!state.players[pi]) return res;
+  state.players[pi].planes.forEach((p, i) => {
+    if (p.progress < 0) {
+      if (canTakeOff(dice)) res.push({ plane: i, to: 0 });
+    } else if (p.progress < GOAL) {
+      if (p.progress + dice <= GOAL) res.push({ plane: i, to: p.progress + dice });
+    }
+  });
+  return res;
+}
+
+function initGameState() {
+  state.players = COLORS.map(() => ({
+    planes: [0, 1, 2, 3].map(() => ({ progress: -1 }))
+  }));
+  state.turn = 0;
+  state.dice = 0;
+  state.phase = 'idle';
+  state.busy = false;
+  clearAITimer();
+  clearHighlight();
+  renderDice(0);
+  updatePlanes();
+  updateHUD();
+}
+
+/* ---------- 快照 ---------- */
+function snapshot() {
+  return {
+    planes: state.players.map(p => p.planes.map(x => x.progress)),
+    turn: state.turn,
+    dice: state.dice,
+    phase: state.phase,
+    names: NET.lobby.map(s => s ? s.name : null)
+  };
+}
+
+function applySnapshot(snap) {
+  state.players = snap.planes.map(planes => ({
+    planes: planes.map(p => ({ progress: p }))
+  }));
+  state.turn = snap.turn;
+  state.dice = snap.dice;
+  state.phase = snap.phase;
+  if (snap.names) {
+    NET.lobby = snap.names.map(n => n ? { name: n } : null);
+  }
+  renderDice(snap.dice);
+  updatePlanes();
+  updateHUD();
+}
+
+function syncNow() {
+  if (state.mode === 'online' && NET.isHost) {
+    broadcast({ type: 'state', snap: snapshot() });
+  }
+}
+
+/* ---------- 掷骰子 ---------- */
+async function rollDice() {
+  if (state.phase !== 'idle' || state.busy) return;
+
+  state.busy = true;
+  state.phase = 'rolling';
+  updateControls();
+
+  for (let i = 0; i < 9; i++) {
+    renderDice(1 + Math.floor(Math.random() * 6));
+    await sleep(42 + i * 6);
+  }
+
+  const v = 1 + Math.floor(Math.random() * 6);
+  state.dice = v;
+  renderDice(v);
+  syncNow();
+  await sleep(170);
+
+  const moves = legalMoves(state.turn, v);
+
+  if (moves.length === 0) {
+    toast(canTakeOff(v) ? '无处可去…' : '没有可移动的飞机');
+    await sleep(700);
+    nextTurn();
+    return;
+  }
+
+  if (moves.length === 1) {
+    await sleep(200);
+    await executeMove(state.turn, moves[0].plane, v);
+    return;
+  }
+
+  /* AI 自动选择 */
+  if (isAITurn()) {
+    state.phase = 'choose';
+    state.busy = false;
+    syncNow();
+    await sleep(600);
+    const m = aiChooseMove(state.turn, v, moves);
+    await executeMove(state.turn, m.plane, v);
+    return;
+  }
+
+  /* 等待玩家点击 */
+  state.phase = 'choose';
+  state.busy = false;
+  updateHUD();
+  syncNow();
+}
+
+function aiChooseMove(pi, dice, moves) {
+  let best = moves[0], bestScore = -Infinity;
+  for (const m of moves) {
+    const p = state.players[pi].planes[m.plane];
+    let score = 0;
+    if (p.progress < 0) score = 15;
+    else {
+      score = m.to * 1.2;
+      if (m.to <= 50) {
+        const idx = trackIndex(pi, m.to);
+        if (FLY_CELLS.includes(idx) && m.to + 12 <= GOAL) score += 130;
+        if (trackColor(idx) === pi && m.to + 4 <= GOAL)  score += 45;
+      }
+      if (m.to === GOAL) score += 260;
+    }
+    if (score > bestScore) { bestScore = score; best = m; }
+  }
+  return best;
+}
+
+function handlePlaneClick(pi, i) {
+  if (state.phase !== 'choose') return;
+
+  if (state.mode === 'online') {
+    if (state.turn !== NET.mySeat || pi !== NET.mySeat) return;
+    const moves = legalMoves(pi, state.dice);
+    if (!moves.some(m => m.plane === i)) return;
+    if (NET.isHost) executeMove(pi, i, state.dice);
+    else NET.hostConn && NET.hostConn.send({ type: 'move', plane: i });
+    return;
+  }
+
+  if (pi !== state.turn || isAITurn()) return;
+  const moves = legalMoves(state.turn, state.dice);
+  if (!moves.some(m => m.plane === i)) return;
+  executeMove(pi, i, state.dice);
+}
+
+async function executeMove(pi, planeIdx, dice) {
+  state.phase = 'moving';
+  state.busy = true;
+  clearHighlight();
+  updateControls();
+  syncNow();
+
+  const plane = state.players[pi].planes[planeIdx];
+  const isTakeoff = plane.progress < 0;
+
+  if (isTakeoff) {
+    plane.progress = 0;
+    updatePlanes();
+    syncNow();
+    toast(playerNameAt(pi) + ' 从起点出发！');
+    await sleep(320);
+  } else {
+    for (let s = 0; s < dice; s++) {
+      plane.progress++;
+      updatePlanes();
+      syncNow();
+      await sleep(100);
+    }
+  }
+  await sleep(120);
+
+  if (!isTakeoff) await resolveSpecial(pi, plane);
+
+  updatePlanes();
+  syncNow();
+  await finishTurn(dice);
+}
+
+async function resolveSpecial(pi, plane) {
+  if (plane.progress > 50) return;
+
+  let idx = trackIndex(pi, plane.progress);
+  if (trackColor(idx) === pi && plane.progress + 4 <= GOAL) {
+    plane.progress += 4;
+    updatePlanes();
+    syncNow();
+    toast('同色跳跃 +4');
+    await sleep(420);
+  }
+
+  if (plane.progress <= 50) {
+    idx = trackIndex(pi, plane.progress);
+    if (FLY_CELLS.includes(idx) && plane.progress + 12 <= GOAL) {
+      plane.progress += 12;
+      updatePlanes();
+      syncNow();
+      toast('✦ 星格加速 +12 ✦');
+      await sleep(520);
+    }
+  }
+}
+
+async function finishTurn(dice) {
+  const pi = state.turn;
+
+  if (state.players[pi].planes.every(p => p.progress === GOAL)) {
+    state.phase = 'over';
+    state.busy = false;
+    updateHUD();
+    syncNow();
+
+    let winner;
+    if (state.mode === 'online') winner = playerNameAt(pi);
+    else if (state.mode === 'ai') winner = (pi === state.humanIndex) ? '🎉 你' : COLORS[pi].name;
+    else winner = COLORS[pi].name;
+
+    toast('🏆 ' + winner + ' 全员抵达，获得胜利！');
+    return;
+  }
+
+  if (dice === 6) {
+    state.phase = 'idle';
+    state.busy = false;
+    state.dice = 0;
+    renderDice(0);
+    updateHUD();
+    syncNow();
+    toast('掷出 6，再来一次！');
+    maybeAITurn();
+  } else {
+    nextTurn();
+  }
+}
+
+function nextTurn() {
+  state.turn = (state.turn + 1) % 4;
+  state.dice = 0;
+  state.phase = 'idle';
+  state.busy = false;
+  renderDice(0);
+  updateHUD();
+  syncNow();
+  maybeAITurn();
+}
+
+/* ---------- AI 调度 ---------- */
+function clearAITimer() {
+  if (aiTimer) { clearTimeout(aiTimer); aiTimer = null; }
+}
+
+function maybeAITurn() {
+  clearAITimer();
+  if (state.mode !== 'ai') return;
+  if (state.phase === 'over') return;
+  if (!isAITurn()) return;
+
+  aiTimer = setTimeout(() => {
+    if (state.phase === 'idle' && isAITurn()) rollDice();
+  }, 820);
+}
+
+/* =========================================================
+   网络层
+   ========================================================= */
+const PEER_PREFIX = 'neonfly-v2-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function genCode() {
+  let s = '';
+  for (let i = 0; i < 4; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return s;
+}
+
+function broadcast(msg) {
+  if (!NET.isHost) return;
+  Object.values(NET.conns).forEach(conn => {
+    try { conn.send(msg); } catch (e) {}
+  });
+}
+
+function seatOfPeer(peerId) {
+  return NET.lobby.findIndex(s => s && s.peerId === peerId);
+}
+
+function broadcastLobby() {
+  if (!NET.isHost) return;
+  broadcast({
+    type: 'lobby',
+    seats: NET.lobby.map(s => s ? { name: s.name } : null)
+  });
+  renderLobby();
+}
+
+/* ---------- Host 端 ---------- */
+function hostRoom(retry = 0) {
+  if (typeof Peer === 'undefined') {
+    setNetStatus('joinStatus', '联机组件加载失败，请检查网络', 'err');
+    return;
+  }
+  const code = genCode();
+  let peer;
+  try {
+    peer = new Peer(PEER_PREFIX + code, { debug: 0 });
+  } catch (e) {
+    setNetStatus('lobbyStatus', '创建房间失败', 'err');
+    return;
+  }
+
+  peer.on('open', () => {
+    NET.peer = peer;
+    NET.isHost = true;
+    NET.roomCode = code;
+    NET.mySeat = -1;
+    NET.myName = '房主';
+    NET.lobby = [null, null, null, null];
+
+    showView('lobbyView');
+    $('roomCode').textContent = code;
+    setNetStatus('lobbyStatus', '等待玩家加入…（点击房间码可复制）', 'ok');
+    renderLobby();
+  });
+
+  peer.on('connection', conn => {
+    conn.on('open', () => {
+      NET.conns[conn.peer] = conn;
+
+      conn.on('data', data => hostHandle(conn, data));
+      conn.on('close', () => removePlayer(conn.peer));
+      conn.on('error', () => removePlayer(conn.peer));
+    });
+  });
+
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id' && retry < 4) {
+      try { peer.destroy(); } catch (e) {}
+      hostRoom(retry + 1);
+    } else {
+      setNetStatus('lobbyStatus', '房间创建失败：' + (err.type || 'unknown'), 'err');
+    }
+  });
+}
+
+function removePlayer(peerId) {
+  const seat = seatOfPeer(peerId);
+  if (seat >= 0) NET.lobby[seat] = null;
+  delete NET.conns[peerId];
+  delete NET.peerNames[peerId];
+  broadcastLobby();
+}
+
+function hostHandle(conn, data) {
+  if (!data || !data.type) return;
+
+  switch (data.type) {
+    case 'hello': {
+      const name = String(data.name || '玩家').slice(0, 6) || '玩家';
+      NET.peerNames[conn.peer] = name;
+      setNetStatus('lobbyStatus', '玩家「' + name + '」已加入', 'ok');
+      break;
+    }
+    case 'pickColor': {
+      const color = +data.color;
+      if (color < 0 || color > 3) return;
+      if (NET.lobby[color]) {
+        conn.send({ type: 'err', msg: '该颜色已被选择' });
+        return;
+      }
+      const old = seatOfPeer(conn.peer);
+      if (old >= 0) NET.lobby[old] = null;
+      NET.lobby[color] = {
+        peerId: conn.peer,
+        name: NET.peerNames[conn.peer] || '玩家'
+      };
+      broadcastLobby();
+      hostTryStart();
+      break;
+    }
+    case 'roll': {
+      const seat = seatOfPeer(conn.peer);
+      if (seat < 0 || seat !== state.turn) return;
+      if (state.phase !== 'idle') return;
+      rollDice();
+      break;
+    }
+    case 'move': {
+      const seat = seatOfPeer(conn.peer);
+      if (seat < 0 || seat !== state.turn) return;
+      if (state.phase !== 'choose') return;
+      const moves = legalMoves(seat, state.dice);
+      if (!moves.some(m => m.plane === data.plane)) return;
+      executeMove(seat, data.plane, state.dice);
+      break;
+    }
+  }
+}
+
+function hostPickColor(color) {
+  if (color < 0 || color > 3) return;
+  if (NET.lobby[color]) {
+    if (NET.mySeat === color) return;   // 已是自己的
+    return;
+  }
+  if (NET.mySeat >= 0) NET.lobby[NET.mySeat] = null;
+  NET.mySeat = color;
+  NET.lobby[color] = { peerId: '__host__', name: NET.myName };
+  broadcastLobby();
+  hostTryStart();
+}
+
+function hostTryStart() {
+  if (!NET.isHost) return;
+  if (NET.lobby.some(s => !s)) return;
+
+  /* 4 人齐 → 开局 */
+  state.mode = 'online';
+  initGameState();
+  $('startOverlay').classList.add('hidden');
+
+  broadcast({ type: 'start', snap: snapshot() });
+  setNetStatus('netStatus', '联机对局进行中 · 房间 ' + NET.roomCode, 'ok');
+}
+
+/* ---------- Client 端 ---------- */
+function joinRoom(code, name) {
+  if (typeof Peer === 'undefined') {
+    setNetStatus('joinStatus', '联机组件加载失败，请检查网络', 'err');
+    return;
+  }
+  setNetStatus('joinStatus', '正在连接…');
+
+  const peer = new Peer({ debug: 0 });
+  let done = false;
+
+  const timeout = setTimeout(() => {
+    if (done) return;
+    done = true;
+    try { peer.destroy(); } catch (e) {}
+    setNetStatus('joinStatus', '连接超时，请确认房间码正确', 'err');
+  }, 12000);
+
+  peer.on('open', () => {
+    const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+
+    conn.on('open', () => {
+      done = true;
+      clearTimeout(timeout);
+      NET.peer = peer;
+      NET.hostConn = conn;
+      NET.isHost = false;
+      NET.roomCode = code;
+      NET.mySeat = -1;
+      NET.myName = name;
+      NET.lobby = [null, null, null, null];
+
+      conn.send({ type: 'hello', name });
+      conn.on('data', clientHandle);
+      conn.on('close', () => {
+        setNetStatus('netStatus', '与房主的连接已断开', 'err');
+        toast('房主已离开房间');
+      });
+      conn.on('error', () => {
+        setNetStatus('netStatus', '连接发生错误', 'err');
+      });
+
+      showView('lobbyView');
+      $('roomCode').textContent = code;
+      setNetStatus('lobbyStatus', '已连接，请选择你的颜色', 'ok');
+      renderLobby();
+    });
+
+    conn.on('error', () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timeout);
+      setNetStatus('joinStatus', '无法连接到该房间', 'err');
+    });
+  });
+
+  peer.on('error', err => {
+    if (done) return;
+    done = true;
+    clearTimeout(timeout);
+    let msg = '连接失败';
+    if (err.type === 'peer-unavailable') msg = '房间不存在或已关闭';
+    else if (err.type === 'network') msg = '网络异常，请稍后重试';
+    setNetStatus('joinStatus', msg, 'err');
+  });
+}
+
+function clientHandle(data) {
+  if (!data || !data.type) return;
+
+  switch (data.type) {
+    case 'lobby':
+      NET.lobby = data.seats.map(s => s ? { name: s.name } : null);
+      renderLobby();
+      break;
+
+    case 'start':
+      state.mode = 'online';
+      applySnapshot(data.snap);
+      $('startOverlay').classList.add('hidden');
+      setNetStatus('netStatus', '联机对局进行中 · 房间 ' + NET.roomCode, 'ok');
+      break;
+
+    case 'state':
+      if (state.mode !== 'online') {
+        state.mode = 'online';
+        $('startOverlay').classList.add('hidden');
+      }
+      applySnapshot(data.snap);
+      break;
+
+    case 'err':
+      setNetStatus('lobbyStatus', data.msg || '操作失败', 'err');
+      break;
+  }
+}
+
+/* =========================================================
+   大厅渲染
+   ========================================================= */
+function renderLobby() {
+  const grid = $('lobbyGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  COLORS.forEach((col, pi) => {
+    const btn = document.createElement('button');
+    btn.className = 'color-btn';
+    btn.style.setProperty('--crgb', col.rgb);
+
+    const occupant = NET.lobby[pi];
+    const isMine = (pi === NET.mySeat);
+
+    if (occupant) {
+      btn.classList.add('taken');
+      if (isMine) btn.classList.add('mine');
+      btn.innerHTML =
+        '<span class="cb-dot"></span>' +
+        '<span class="cb-name">' + occupant.name + '</span>' +
+        '<span class="cb-hint">' + col.name + '</span>' +
+        (isMine ? '<span class="cb-badge">你</span>' : '');
+    } else {
+      btn.innerHTML =
+        '<span class="cb-dot"></span>' +
+        '<span class="cb-name">' + col.name + '</span>' +
+        '<span class="cb-hint">点击选择</span>';
+      btn.addEventListener('click', () => requestPickColor(pi));
+    }
+    grid.appendChild(btn);
+  });
+
+  /* 提示 */
+  const filled = NET.lobby.filter(s => s).length;
+  const hint = $('lobbyHint');
+  if (hint) {
+    if (filled >= 4) hint.textContent = '全部就位，即将开始…';
+    else hint.textContent = '等待玩家选择颜色（' + filled + '/4）';
+  }
+}
+
+function requestPickColor(color) {
+  if (NET.lobby[color]) return;
+  if (NET.isHost) {
+    hostPickColor(color);
+  } else {
+    if (!NET.hostConn) return;
+    NET.hostConn.send({ type: 'pickColor', color });
+  }
+}
+
+/* 人机颜色选择 */
+function renderAIColorGrid() {
+  const grid = $('aiColorGrid');
+  grid.innerHTML = '';
+  COLORS.forEach((col, pi) => {
+    const btn = document.createElement('button');
+    btn.className = 'color-btn';
+    btn.style.setProperty('--crgb', col.rgb);
+    btn.innerHTML =
+      '<span class="cb-dot"></span>' +
+      '<span class="cb-name">' + col.name + '</span>';
+    btn.addEventListener('click', () => startAIGame(pi));
+    grid.appendChild(btn);
+  });
+}
+
+/* =========================================================
+   视图切换
+   ========================================================= */
+const VIEWS = ['menuView', 'aiColorView', 'joinView', 'lobbyView'];
+
+function showView(id) {
+  VIEWS.forEach(v => {
+    const el = $(v);
+    if (el) el.classList.toggle('hidden', v !== id);
+  });
+  $('startOverlay').classList.remove('hidden');
+}
+
+function hideOverlay() {
+  $('startOverlay').classList.add('hidden');
+}
+
+function resetNet() {
+  clearAITimer();
+  if (NET.hostConn) { try { NET.hostConn.close(); } catch (e) {} NET.hostConn = null; }
+  Object.values(NET.conns).forEach(c => { try { c.close(); } catch (e) {} });
+  NET.conns = {};
+  NET.peerNames = {};
+  if (NET.peer) { try { NET.peer.destroy(); } catch (e) {} NET.peer = null; }
+  NET.isHost = false;
+  NET.roomCode = '';
+  NET.mySeat = -1;
+  NET.lobby = [null, null, null, null];
+  setNetStatus('netStatus', '');
+  setNetStatus('joinStatus', '');
+  setNetStatus('lobbyStatus', '');
+}
+
+function backToMenu() {
+  resetNet();
+  state.mode = 'pvp';
+  state.phase = 'idle';
+  state.busy = false;
+  setNetStatus('netStatus', '');
+  showView('menuView');
+}
+
+/* =========================================================
+   开局
+   ========================================================= */
+function startLocalGame(mode, humanIndex = 0) {
+  resetNet();
+  state.mode = mode;
+  state.humanIndex = humanIndex;
+  state.aiFlags = (mode === 'ai')
+    ? [0, 1, 2, 3].map(i => i !== humanIndex)
+    : [false, false, false, false];
+
+  initGameState();
+  hideOverlay();
+  maybeAITurn();
+}
+
+function startAIGame(color) {
+  startLocalGame('ai', color);
+}
+
+/* =========================================================
+   事件绑定
+   ========================================================= */
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const act = btn.dataset.act;
+    if (act === 'pvp') {
+      startLocalGame('pvp');
+    } else if (act === 'ai') {
+      showView('aiColorView');
+    } else if (act === 'host') {
+      showView('lobbyView');
+      $('roomCode').textContent = '····';
+      setNetStatus('lobbyStatus', '正在创建房间…');
+      hostRoom();
+    } else if (act === 'join') {
+      showView('joinView');
+      $('codeInput').value = '';
+      setNetStatus('joinStatus', '');
+      setTimeout(() => $('codeInput').focus(), 250);
+    }
+  });
+});
+
+document.querySelectorAll('[data-back="menu"]').forEach(btn => {
+  btn.addEventListener('click', backToMenu);
+});
+
+$('leaveBtn').addEventListener('click', backToMenu);
+
+$('joinBtn').addEventListener('click', () => {
+  const code = ($('codeInput').value || '').trim().toUpperCase();
+  const name = ($('nameInput').value || '').trim().slice(0, 6) || ('玩家' + Math.floor(Math.random() * 90 + 10));
+  if (code.length !== 4) {
+    setNetStatus('joinStatus', '请输入 4 位房间码', 'err');
+    return;
+  }
+  joinRoom(code, name);
+});
+
+$('codeInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('joinBtn').click();
+});
+$('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('joinBtn').click();
+});
+
+$('roomCode').addEventListener('click', () => {
+  const code = $('roomCode').textContent.trim();
+  if (!code || code === '····' || code === '----') return;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(code).then(() => {
+      setNetStatus('lobbyStatus', '房间码已复制：' + code, 'ok');
+    }).catch(() => {});
+  }
+});
+
+$('menuBtn').addEventListener('click', () => {
+  if (state.mode === 'online') {
+    if (!confirm('确定要离开当前联机对局吗？')) return;
+  }
+  backToMenu();
+});
+
+$('rollBtn').addEventListener('click', () => {
+  if (state.phase === 'over') {
+    if (state.mode === 'online') {
+      toast('请由房主重新开局');
+      return;
+    }
+    showView('menuView');
+    return;
+  }
+
+  if (state.mode === 'online') {
+    if (state.turn !== NET.mySeat) return;
+    if (state.phase !== 'idle') return;
+    if (NET.isHost) rollDice();
+    else if (NET.hostConn) NET.hostConn.send({ type: 'roll' });
+    return;
+  }
+
+  if (state.phase !== 'idle') return;
+  if (isAITurn()) return;
+  rollDice();
+});
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if ($('rollBtn').disabled) return;
+    $('rollBtn').click();
+  }
+});
+
+/* 断线保护 */
+window.addEventListener('beforeunload', () => {
+  if (NET.mode === 'online' && NET.hostConn) {
+    try { NET.hostConn.close(); } catch (e) {}
+  }
+});
+
+/* =========================================================
+   启动
+   ========================================================= */
+initBoard();
+buildPlayerCards();
+renderDice(0);
+initGameState();
+renderAIColorGrid();
+showView('menuView');
+setNetStatus('netStatus', '');
+</script>
+</body>
+</html>
