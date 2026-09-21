@@ -1178,9 +1178,9 @@ function applySnapshot(snap) {
   state.dice = snap.dice;
   state.phase = snap.phase;
   if (snap.names) {
-     NET.lobby = snap.names.map((n, i) => {
-    const old = NET.lobby[i];
-    return n ? { name: n, peerId: old ? old.peerId : null } : null;
+    NET.lobby = snap.names.map((n, i) => {
+      const old = NET.lobby[i];
+      return n ? { name: n, peerId: old ? old.peerId : null } : null;
     });
   }
   renderDice(snap.dice);
@@ -1631,16 +1631,17 @@ function joinRoom(code, name) {
 function clientHandle(data) {
   if (!data || !data.type) return;
 
-  case 'lobby':
+  switch (data.type) {
+    case 'lobby':
       NET.lobby = data.seats.map(s => s ? { name: s.name, peerId: s.peerId } : null);
       // 用自己的 Peer ID 找出我的座位
-     if (NET.peer && NET.peer.id) {
-       NET.mySeat = NET.lobby.findIndex(s => s && s.peerId === NET.peer.id);
+      if (NET.peer && NET.peer.id) {
+        NET.mySeat = NET.lobby.findIndex(s => s && s.peerId === NET.peer.id);
       }
-     renderLobby();
-     // 如果已经开局，同步刷新 HUD 和按钮状态
+      renderLobby();
+      // 如果已经开局，同步刷新 HUD 和按钮状态
       if (state.mode === 'online') updateHUD();
-     break;
+      break;
 
     case 'start':
       state.mode = 'online';
